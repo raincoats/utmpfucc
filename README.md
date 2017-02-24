@@ -6,29 +6,31 @@ Automatically remove records based on an IP address from:
  - `/var/log/wtmp`
  - `/var/log/lastlog`
 
+You must have root, or at least write access on those files, for this tool to work.
+
 ## Example
 
     $ whoami
-    weepy
+    root
     
     $ w
-     13:07:41 up 9 days, 19:33,  2 users,  load average: 0.09, 0.39, 0.50
+     08:50:07 up 10:40,  2 users,  load average: 0.05, 0.13, 0.17
     USER     TTY        LOGIN@   IDLE   JCPU   PCPU WHAT
-    root     pts/3     Sun12   22:15m  1.85s  1.85s -zsh
-    weepy    pts/4     12:00   58:21   0.16s  0.16s w
+    root     tty1      08:49   33.00s  0.15s  0.15s -zsh
+    root     pts/1     08:48    6.00s  0.33s  0.00s w
     
     $ utmpfucc
-    /var/run/utmp: 29342    weepy    pts/4        2017-02-13 12:00 (10.0.0.99)
+    /var/run/utmp: 7854     root     pts/1        2017-02-25 08:48 (10.0.0.99)
     [$] /var/run/utmp: removed 1 records
-    /var/log/wtmp: 29342    weepy    pts/4        2017-02-13 12:00 (10.0.0.99)
+    /var/log/wtmp: 7854     root     pts/1        2017-02-25 08:48 (10.0.0.99)
     [$] /var/log/wtmp: removed 1 records
     [$] /var/log/lastlog: removed 1 records
     
     $ w
-     13:07:41 up 9 days, 19:33,  1 user,  load average: 0.08, 0.37, 0.50
+     08:50:22 up 10:40,  1 user,  load average: 0.11, 0.14, 0.18
     USER     TTY        LOGIN@   IDLE   JCPU   PCPU WHAT
-    root     pts/3     Sun12   22:15m  1.85s  1.85s -zsh
-
+    root     tty1      08:49   48.00s  0.15s  0.15s -zsh
+    
     $ what now bitch
     sh: what: command not found
 
