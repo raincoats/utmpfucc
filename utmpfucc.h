@@ -24,6 +24,7 @@
 #include <getopt.h>
 #include <errno.h>
 #include <utmp.h>
+#include <fcntl.h>
 
 #define mw(function) do { function; } while (false)
 #define die(e)   mw( perror(e); exit(1) )
@@ -46,6 +47,7 @@ void _w(char *, ...);
 char *ip_to_string(void *);
 char *time_to_string(time_t);
 in_addr_t string_to_ip(char *);
+int can_we_write_file(char *);
 void usage();
 void version();
 

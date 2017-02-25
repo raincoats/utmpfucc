@@ -193,3 +193,23 @@ in_addr_t string_to_ip(char *str)
 
 	return addr.s_addr;
 }
+
+
+/*
+ *   can_we_write_file()
+ *   ~~~~~~~~~~~~~~~~~~~
+ *
+ *   checks if we have write perms on a file.
+ */
+int can_we_write_file(char *filename)
+{
+	if (euidaccess(filename, R_OK|W_OK) == 0) {
+		_2("%s: is writable", filename);
+		return true;
+	}
+	else {		
+		_w("%s: is not writable", filename);
+		return false;
+	}
+}
+
