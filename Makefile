@@ -10,7 +10,7 @@ OBJ = util.o utmpfucc.o
 	$(CC) -c -o $@ $< $(CFLAGS)
 
 all: $(OBJ)
-	gcc -o $(NAME) $^ $(CFLAGS)
+	$(CC) -o $(NAME) $^ $(CFLAGS)
 
 debug: $(OBJ)
 
