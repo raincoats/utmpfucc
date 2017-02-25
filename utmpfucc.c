@@ -60,6 +60,9 @@ void do_utmp_file(char *filename)
 	int removed = 0;
 	char buf[sizeof(utmp)];
 
+	if (can_we_write_file(filename) == false)
+		return;
+
 	_2("processing '%s' as utmp file", filename);
 
 	FILE *file = fopen(filename, "r");
@@ -140,6 +143,9 @@ void do_llog_file(char *filename)
 	char buf[sizeof(lastlog)];
 	struct lastlog *ptr = (struct lastlog *)buf;
 	char *ip;
+
+	if (can_we_write_file(filename) == false)
+		return;
 
 	_2("processing '%s' as lastlog file", filename);
 
